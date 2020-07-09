@@ -23,6 +23,6 @@ The developers of this bot hold no liability for what you do with this script or
 
 This bot being really close from tootbot the instruction to set it up are really close from what you can find on [the tootbot wiki](https://github.com/corbindavenport/tootbot/wiki) main difference is that you have to allow your bot to read direct messages for it to work.
 
-# Support
+## Support
 
 If this bot doesn't work contact me [@Mahkda_](twitter.com/Mahkda_) on twitter.
