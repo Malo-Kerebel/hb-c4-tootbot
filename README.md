@@ -1,4 +1,4 @@
-# This bot name I haven't found a name yet
+# This bot for which I haven't found a name yet
 
 This is a Python bot that looks up posts from specified subreddits and automatically posts them on Twitter. It is based on [tootbot](https://github.com/corbindavenport/tootbot) which is based on [reddit-twitter-bot](https://github.com/rhiever/reddit-twitter-bot). This bot diverges from tootbot by adding the features to wish an happy birthday to people who sign up to it and the ability to play connact 4 with friends
 
