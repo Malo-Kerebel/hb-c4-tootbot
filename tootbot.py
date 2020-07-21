@@ -52,14 +52,14 @@ def get_twitter_caption(submission):
         for x in HASHTAGS:
             # Add hashtag to string, followed by a space for the next one
             hashtag_string += '#' + x + ' '
-    #gets flair from the submission
+    # Gets flair from the submission
     if (str(submission.link_flair_text) != "None"):
-        flair = str(post_dict[post].link_flair_text)
+        flair = str(post_dict[post].link_flair_text) + ' '
     # Set the Twitter max title length for 280, minus the length of the shortlink, flair and hashtags, minus one for the space between title and shortlink
     twitter_max_title_length = 280 - len(submission.shortlink) - len(flair) - len(hashtag_string) - 1
     # Create contents of the Twitter post
     if len(submission.title) < twitter_max_title_length:
-        twitter_caption = submission.title + ' ' + flair + ' ' + hashtag_string + submission.shortlink
+        twitter_caption = submission.title + ' ' + flair + hashtag_string + submission.shortlink
         print(submission.link_flair_text)
     else:
         twitter_caption = submission.title[:twitter_max_title_length] + '... ' + flair + ' ' + hashtag_string + submission.shortlink
