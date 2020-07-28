@@ -44,7 +44,7 @@ def get_reddit_posts(subreddit_info):
             post_dict[submission.id] = submission
     return post_dict
 
-def get_twitter_caption(submission):
+def get_twitter_caption(submission, FLAIR_ALLOWED):
     # Create string of hashtags
     hashtag_string = ''
     flair = ''
@@ -53,8 +53,8 @@ def get_twitter_caption(submission):
             # Add hashtag to string, followed by a space for the next one
             hashtag_string += '#' + x + ' '
     # Gets flair from the submission
-    if (str(submission.link_flair_text) != "None"):
-        flair = str(submission.link_flair_text) + ' '
+    if (str(submission.link_flair_text) != "None" and FLAIR_ALLOWED):
+        flair = '(' + str(submission.link_flair_text) + ') '
     # Set the Twitter max title length for 280, minus the length of the shortlink, flair and hashtags, minus one for the space between title and shortlink
     twitter_max_title_length = 280 - len(submission.shortlink) - len(flair) - len(hashtag_string) - 1
     # Create contents of the Twitter post
@@ -168,7 +168,7 @@ def check_message(message):
 	
 
 
-def make_post(post_dict):
+def make_post(post_dict, FLAIR_ALLOWED):
     for post in post_dict:
         # Grab post details from dictionary
         post_id = post_dict[post].id
@@ -190,7 +190,7 @@ def make_post(post_dict):
                             ACCESS_TOKEN, ACCESS_TOKEN_SECRET)
                         twitter = tweepy.API(auth)
                         # Generate post caption
-                        caption = get_twitter_caption(post_dict[post])
+                        caption = get_twitter_caption(post_dict[post], FLAIR_ALLOWED)
                         # Post the tweet
                         if (media_file):
                             print('[ OK ] Posting this on Twitter with media attachment:', caption)
@@ -302,6 +302,8 @@ if config['BotSettings']['Hashtags']:
     HASHTAGS = [x.strip() for x in HASHTAGS.split(',')]
 else:
     HASHTAGS = ''
+FLAIR_ALLOWED = bool(distutils.util.strtobool(
+    config['BotSettings']['Flair']))
 # Settings related to media attachments
 MEDIA_POSTS_ONLY = bool(distutils.util.strtobool(
     config['MediaSettings']['MediaPostsOnly']))
@@ -515,7 +517,7 @@ while True:
     try:
         subreddit = setup_connection_reddit(SUBREDDIT_TO_MONITOR)
         post_dict = get_reddit_posts(subreddit)
-        make_post(post_dict)
+        make_post(post_dict, FLAIR_ALLOWED)
     except BaseException as e:
         print('[EROR] Error in main process:', str(e))
     
