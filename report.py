@@ -7,7 +7,7 @@ def unshorten(url):
 	return resp.url
 
 def main(textMessage, arrayMessage, userID, twitter, TWITTER_OWNER):
-	if (len arrayMessage == 1):
+	if (len(arrayMessage) == 1):
 		twitter.send_direct_message(userID, "You must provide an argument, use /report -help to get more information
 	elif( arrayMessage[1] == "-help" or arrayMessage[1] == "-h"):
 		twitter.send_direct_message(userId, "To report a tweet you must provide the URL of the tweet you want to report, you can put as much text as you want as justification for why the tweet should get deleted\nExample:\n/report justification twitter.com/" + twitter.me().screen_name + "/status/...")
