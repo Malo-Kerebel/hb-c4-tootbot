@@ -164,7 +164,10 @@ def check_message(message):
 		elif (arrayMessage[0] == "/help" or arrayMessage[0] == "/h"):
 			twitter.send_direct_message(userID, "There are currently 4 commands available :\n\n/connect4 (or /c4) that allows you to play a connect4 game with a friend, use /connect4 -help to get more information about this command\n\n/birthday (or /bd) that allows you to register so that the bot wishes you an happy birthday, use /birthday -help to get more information about this command\n\n/report (or /r) send a report to the account owner for further inspection and potentially delete the tweet, use /report -help to get more information about this command\n\n/help (or -h) that displays this message")
 		elif (arrayMessage[0] == "/report" or arrayMessage[0] == "/r"):
-			report.main(textMessage,arrayMessage,userID,twitter,TWITTER_OWNER)
+			if (TWITTER_OWNER != ""):
+				report.main(textMessage,arrayMessage,userID,twitter,TWITTER_OWNER)
+			else:
+				twitter.send_direct_message(userID, "The report command has been disabled")
 		elif (arrayMessage[0] == "/delete" or arrayMessage[0] == "/d"):
 			if (userID == TWITTER_OWNER):
 				report.delete(arrayMessage[1], twitter)
