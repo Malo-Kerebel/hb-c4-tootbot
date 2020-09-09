@@ -50,7 +50,7 @@ def delete(tweetID, twitter):
 		reportFile.writelines(output)
 		reportFile.close()
 	except:
-		twitter.send_direct_messages(TWITTER_OWNER, "The ID sent isn't valid")
+		twitter.send_direct_message(TWITTER_OWNER, "The ID sent isn't valid")
 
 def reject(tweetID, twitter):
 	try:
