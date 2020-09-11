@@ -170,12 +170,18 @@ def check_message(message):
 				twitter.send_direct_message(userID, "The report command has been disabled")
 		elif (arrayMessage[0] == "/delete" or arrayMessage[0] == "/d"):
 			if (userID == TWITTER_OWNER):
-				report.delete(arrayMessage[1], twitter)
+				if (len(arrayMessage) > 1):
+					report.delete(arrayMessage[1], twitter)
+				else:
+					twitter.send_direct_message(userID, "You must enter an ID")
 			else:
 				twitter.send_direct_message(userID,"Only the administrator has access to this command")
 		elif (arrayMessage[0] == "/spare" or arrayMessage[0] == "/s"):
 			if (userID == TWITTER_OWNER):
-				report.reject(arrayMessage[1], twitter)
+				if (len(arrayMessage) > 1):
+					report.reject(arrayMessage[1], twitter)
+				else:
+					twitter.send_direct_message(userID, "You must enter an ID")
 			else:
 				twitter.send_direct_message(userID,"Only the administrator has access to this command")
 		else:
