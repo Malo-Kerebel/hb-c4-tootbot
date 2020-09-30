@@ -11,7 +11,7 @@ def main (arrayMessage,userID,twitter):
 
 	if (arrayMessage[1] == "-optin" or arrayMessage[1] == "-i" ) :				
 		returnMessage = optin(arrayMessage,userID,twitter)				
-	elif (arrayMessage[1] == "/optout" or arrayMessage[1] == "-o"):
+	elif (arrayMessage[1] == "-optout" or arrayMessage[1] == "-o"):
 		returnMessage = optout(arrayMessage,userID,twitter)
 	elif (arrayMessage[1] == "-help" or arrayMessage[1] == "-h"):
 		returnMessage = returnMessage + "There are 3 options available for the /birthday command :\n\n-help (or -h) : display this message\nExample : /birthday -help\n\n-optin (or -i) followed by month of birth in figures, a space, day of birth in figures\nExample : /birthday -optin 12 31 (if you are born on the 31st of december\n\n-optout (or -o), which deletes every information about you from the database, you won't get any birthday wishes anymore\nExemple : /birthday -optout\n\nNote that you can always write /bd instead of /birthday\n\nDue to the way the bot works there is a 5 minute delay between each command is processed" + '\n'
