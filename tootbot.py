@@ -45,6 +45,7 @@ def get_reddit_posts(subreddit_info):
             post_dict[submission.id] = submission
     return post_dict
 
+
 def get_twitter_caption(submission, FLAIR_ALLOWED):
     # Create string of hashtags
     hashtag_string = ''
@@ -61,7 +62,6 @@ def get_twitter_caption(submission, FLAIR_ALLOWED):
     # Create contents of the Twitter post
     if len(submission.title) < twitter_max_title_length:
         twitter_caption = submission.title + ' ' + flair + hashtag_string + submission.shortlink
-        print(submission.link_flair_text)
     else:
         twitter_caption = submission.title[:twitter_max_title_length] + '... ' + flair + ' ' + hashtag_string + submission.shortlink
     return twitter_caption
@@ -111,81 +111,85 @@ def log_post(id, post_url):
         wr.writerow([id, date, post_url])
     cache.close()
 
+
 def deleteLine(myfile, st):
-	f = open(myfile)
-	output = []
-	for line in f:
-		if not line.startswith(st):
-			output.append(line)
-	f.close()
-	f = open(myfile, 'w')
-	f.writelines(output)
-	f.close()
+    f = open(myfile)
+    output = []
+    for line in f:
+        if not line.startswith(st):
+            output.append(line)
+    f.close()
+    f = open(myfile, 'w')
+    f.writelines(output)
+    f.close()
+
 
 def hour():
 
-	now = datetime.now()
-	hour = str(now.hour) + ':' + str(now.minute)
+    now = datetime.now()
+    hour = str(now.hour) + ':' + str(now.minute)
 
-	return hour
+    return hour
+
 
 def check_messages():
 
-	arrayMessage = twitter.list_direct_messages()
-	done = open("done.txt",'r')
-	data = done.readlines()
-	arrayMessage = [ messages for messages in arrayMessage if messages.message_create["target"]["recipient_id"] == str(twitter.me().id) and int(messages.id) > int(data[1])]
-	print ("[ OK ] " + str(len(arrayMessage)) + " message to process")
-	# print(arrayMessage)
-	for message in reversed(arrayMessage) :
-		check_message(message)
+    arrayMessage = twitter.list_direct_messages()
+    done = open("done.txt", 'r')
+    data = done.readlines()
+    arrayMessage = [messages for messages in arrayMessage if messages.message_create["target"]["recipient_id"] == str(twitter.me().id) and int(messages.id) > int(data[1])]
+    print("[ OK ] " + str(len(arrayMessage)) + " message to process")
+    # print(arrayMessage)
+    for message in reversed(arrayMessage):
+        check_message(message)
+
 
 def check_message(message):
 
-	textMessage = message.message_create["message_data"]["text"]
-	arrayMessage = textMessage.split()
-	userID = message.message_create["sender_id"]
-	done = open("done.txt",'r')
-	data = done.readlines()
+    textMessage = message.message_create["message_data"]["text"]
+    arrayMessage = textMessage.split()
+    userID = message.message_create["sender_id"]
+    done = open("done.txt", 'r')
+    data = done.readlines()
 
-	if (data[1] < message.id):
-		deleteLine("done.txt",data[1])
-		done.close()
-		done = open("done.txt", 'a')
-		done.write(message.id)
-	# Change the id in the done.txt file so that the bot doesn't process the same message twice
+    if (data[1] < message.id):
+        deleteLine("done.txt", data[1])
+        done.close()
+        done = open("done.txt", 'a')
+        done.write(message.id)
+        # Change the id in the done.txt file so that the bot doesn't process the same message twice
 
-	# Big elif because I don't know how to do it better
-	if (textMessage[0] == '/'):
-		if (arrayMessage[0] == "/connect4" or arrayMessage[0] == "/c4" ) :			
-			connect4.main(arrayMessage,userID,twitter)
-		elif (arrayMessage[0] == "/birthday" or arrayMessage[0] == "/bd"):
-			birthday.main(arrayMessage,userID,twitter)
-		elif (arrayMessage[0] == "/help" or arrayMessage[0] == "/h"):
-			twitter.send_direct_message(userID, "There are currently 4 commands available :\n\n/connect4 (or /c4) that allows you to play a connect4 game with a friend, use /connect4 -help to get more information about this command\n\n/birthday (or /bd) that allows you to register so that the bot wishes you an happy birthday, use /birthday -help to get more information about this command\n\n/report (or /r) send a report to the account owner for further inspection and potentially delete the tweet, use /report -help to get more information about this command\n\n/help (or -h) that displays this message")
-		elif (arrayMessage[0] == "/report" or arrayMessage[0] == "/r"):
-			if (TWITTER_OWNER != ""):
-				report.main(textMessage,arrayMessage,userID,twitter,TWITTER_OWNER)
-			else:
-				twitter.send_direct_message(userID, "The report command has been disabled")
-		elif (arrayMessage[0] == "/delete" or arrayMessage[0] == "/d"):
-			if (userID == TWITTER_OWNER):
-				if (len(arrayMessage) > 1):
-					report.delete(arrayMessage[1], twitter)
-				else:
-					twitter.send_direct_message(userID, "You must enter an ID")
-			else:
-				twitter.send_direct_message(userID,"Only the administrator has access to this command")
-		elif (arrayMessage[0] == "/spare" or arrayMessage[0] == "/s"):
-			if (userID == TWITTER_OWNER):
-				if (len(arrayMessage) > 1):
-					report.reject(arrayMessage[1], twitter)
-				else:
-					twitter.send_direct_message(userID, "You must enter an ID")
-			else:
-				twitter.send_direct_message(userID,"Only the administrator has access to this command")
-		else:
-			twitter.send_direct_message(userID, "This command doesn't exist, use /help to get a list of the different commands available\n\nIf you still don't understand how to use the command contact @Mahkda_ directly")
+        # Big elif because I don't know how to do it better
+        if (textMessage[0] == '/'):
+            if (arrayMessage[0] == "/connect4" or arrayMessage[0] == "/c4"):
+                connect4.main(arrayMessage, userID, twitter)
+            elif (arrayMessage[0] == "/birthday" or arrayMessage[0] == "/bd"):
+                birthday.main(arrayMessage, userID, twitter)
+            elif (arrayMessage[0] == "/help" or arrayMessage[0] == "/h"):
+                twitter.send_direct_message(userID, "There are currently 4 commands available :\n\n/connect4 (or /c4) that allows you to play a connect4 game with a friend, use /connect4 -help to get more information about this command\n\n/birthday (or /bd) that allows you to register so that the bot wishes you an happy birthday, use /birthday -help to get more information about this command\n\n/report (or /r) send a report to the account owner for further inspection and potentially delete the tweet, use /report -help to get more information about this command\n\n/help (or -h) that displays this message")
+            elif (arrayMessage[0] == "/report" or arrayMessage[0] == "/r"):
+                if (TWITTER_OWNER != ""):
+                    report.main(textMessage, arrayMessage, userID, twitter, TWITTER_OWNER)
+                else:
+                    twitter.send_direct_message(userID, "The report command has been disabled")
+            elif (arrayMessage[0] == "/delete" or arrayMessage[0] == "/d"):
+                if (userID == TWITTER_OWNER):
+                    if (len(arrayMessage) > 1):
+                        report.delete(arrayMessage[1], twitter)
+                    else:
+                        twitter.send_direct_message(userID, "You must enter an ID")
+                else:
+                    twitter.send_direct_message(userID, "Only the administrator has access to this command")
+            elif (arrayMessage[0] == "/spare" or arrayMessage[0] == "/s"):
+                if (userID == TWITTER_OWNER):
+                    if (len(arrayMessage) > 1):
+                        report.reject(arrayMessage[1], twitter)
+                    else:
+                        twitter.send_direct_message(userID, "You must enter an ID")
+                else:
+                    twitter.send_direct_message(userID, "Only the administrator has access to this command")
+            else:
+                twitter.send_direct_message(userID, "This command doesn't exist, use /help to get a list of the different commands available\n\nIf you still don't understand how to use the command contact @Mahkda_ directly")
 
 
 def make_post(post_dict, FLAIR_ALLOWED):
@@ -195,7 +199,7 @@ def make_post(post_dict, FLAIR_ALLOWED):
         if not duplicate_check(post_id):  # Make sure post is not a duplicate
             # Download Twitter-compatible version of media file (static image or GIF under 3MB)
             if POST_TO_TWITTER:
-                media_file = get_media(post_dict[post].url, IMGUR_CLIENT, IMGUR_CLIENT_SECRET)
+                media_file = get_media(post_dict[post].url, IMGUR_CLIENT, IMGUR_CLIENT_SECRET, r)
             # Download Mastodon-compatible version of media file (static image or MP4 file)
             if MASTODON_INSTANCE_DOMAIN:
                 hd_media_file = get_hd_media(post_dict[post], IMGUR_CLIENT, IMGUR_CLIENT_SECRET)
@@ -213,8 +217,32 @@ def make_post(post_dict, FLAIR_ALLOWED):
                         caption = get_twitter_caption(post_dict[post], FLAIR_ALLOWED)
                         # Post the tweet
                         if (media_file):
+                            if type(media_file) is list:
+                                media_ids = [twitter.media_upload(i).media_id_string for i in media_file[:4]]
+                                print('[ OK ] Posting first tweet on Twitter with media attachment:', caption)
+                                tweet = twitter.update_status(status=caption, media_ids=media_ids)
+                                if len(media_file) > 4:
+                                    media_ids = [twitter.media_upload(i).media_id_string for i in media_file[4:8]]
+                                    print('[ OK ] Posting second tweet on Twitter with media attachment:', caption)
+                                    tweet = twitter.update_status(status=caption, in_reply_to_status_id=str(tweet.id), media_ids=media_ids)
+                                if len(media_file) > 8:
+                                    media_ids = [twitter.media_upload(i).media_id_string for i in media_file[8:12]]
+                                    print('[ OK ] Posting third tweet on Twitter with media attachment:', caption)
+                                    tweet = twitter.update_status(status=caption, in_reply_to_status_id=str(tweet.id), media_ids=media_ids)
+                                if len(media_file) > 12:
+                                    media_ids = [twitter.media_upload(i).media_id_string for i in media_file[12:16]]
+                                    print('[ OK ] Posting fourth tweet on Twitter with media attachment:', caption)
+                                    tweet = twitter.update_status(status=caption, in_reply_to_status_id=str(tweet.id), media_ids=media_ids)
+                                if len(media_file) > 16:
+                                    media_ids = [twitter.media_upload(i).media_id_string for i in media_file[16:20]]
+                                    print('[ OK ] Posting fifth tweet on Twitter with media attachment:', caption)
+                                    tweet = twitter.update_status(status=caption, in_reply_to_status_id=str(tweet.id), media_ids=media_ids)
+                                    # We can't have more than 20 images in a reddit gallery
+                            else:
+                                media_id = [twitter.media_upload(media_file).media_id_string]
+                                tweet = twitter.update_status(status=caption, media_ids=media_id)
                             print('[ OK ] Posting this on Twitter with media attachment:', caption)
-                            tweet = twitter.update_with_media(filename=media_file, status=caption)
+
                             # Clean up media file
                             try:
                                 os.remove(media_file)
@@ -222,7 +250,7 @@ def make_post(post_dict, FLAIR_ALLOWED):
                             except BaseException as e:
                                 print('[EROR] Error while deleting media file:', str(e))
                         else:
-                            print('[ OK ] Posting this on Twitter:',caption)
+                            print('[ OK ] Posting this on Twitter:', caption)
                             tweet = twitter.update_status(status=caption)
                         # Log the tweet
                         log_post(post_id, 'https://twitter.com/' + twitter_username + '/status/' + tweet.id_str + '/')
@@ -234,7 +262,7 @@ def make_post(post_dict, FLAIR_ALLOWED):
                     print('[WARN] Twitter: Skipping', post_id, 'because non-media posts are disabled or the media file was not found')
                     # Log the post anyways
                     log_post(post_id, 'Twitter: Skipped because non-media posts are disabled or the media file was not found')
-            
+
             # Post on Mastodon
             if MASTODON_INSTANCE_DOMAIN:
                 # Make sure the post contains media, if MEDIA_POSTS_ONLY in config is set to True
@@ -270,12 +298,12 @@ def make_post(post_dict, FLAIR_ALLOWED):
                     except BaseException as e:
                         print('[EROR] Error while posting toot:', str(e))
                         # Log the post anyways
-                        log_post(post_id,'Error while posting toot: ' + str(e))
+                        log_post(post_id, 'Error while posting toot: ' + str(e))
                 else:
                     print('[WARN] Mastodon: Skipping', post_id, 'because non-media posts are disabled or the media file was not found')
                     # Log the post anyways
                     log_post(post_id, 'Mastodon: Skipped because non-media posts are disabled or the media file was not found')
-            
+
             # Go to sleep
             # print('[ OK ] Sleeping for', DELAY_BETWEEN_TWEETS, 'seconds')
             # time.sleep(DELAY_BETWEEN_TWEETS)
@@ -366,6 +394,7 @@ else:
     reddit_config.read('reddit.secret')
     REDDIT_AGENT = reddit_config['Reddit']['Agent']
     REDDIT_CLIENT_SECRET = reddit_config['Reddit']['ClientSecret']
+
 # Setup and verify Imgur access
 if not os.path.exists('imgur.secret'):
     print('[WARN] API keys for Imgur not found. Please enter them below (see wiki if you need help).')
@@ -523,9 +552,15 @@ if (os.name == 'nt'):
     except:
         os.system('title Tootbot')
 
+r = praw.Reddit(
+        user_agent='Tootbot',
+        client_id=REDDIT_AGENT,
+        client_secret=REDDIT_CLIENT_SECRET)
+
+
 # Run the main script
 while True:
-    
+
     # Make sure logging file and media directory exists
     if not os.path.exists(CACHE_CSV):
         with open(CACHE_CSV, 'w', newline='') as cache:
@@ -535,17 +570,18 @@ while True:
         print('[ OK ] ' + CACHE_CSV + ' file not found, created a new one')
         cache.close()
     # Continue with script
-    #try:
-    #    subreddit = setup_connection_reddit(SUBREDDIT_TO_MONITOR)
-    #    post_dict = get_reddit_posts(subreddit)
-    #    make_post(post_dict, FLAIR_ALLOWED)
-    #except BaseException as e:
-    #    print('[EROR] Error in main process:', str(e))
-    
-    # process birthday and messages  
-    birthday.check_birthday(twitter,datetime.now())
+    try:
+        subreddit = setup_connection_reddit(SUBREDDIT_TO_MONITOR)
+        post_dict = get_reddit_posts(subreddit)
+        make_post(post_dict, FLAIR_ALLOWED)
+    except BaseException as e:
+        print('[EROR] Error in main process:', str(e))
+
+    # process birthday and messages
+    birthday.check_birthday(twitter, datetime.now())
 
     for i in range(int(DELAY_BETWEEN_TWEETS//200)):
         check_messages()
         time.sleep(200)
+        
     print(hour() + '[ OK ] Restarting main process...')
