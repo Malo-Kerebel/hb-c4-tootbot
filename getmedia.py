@@ -1,7 +1,6 @@
 import os
 import sys
 import configparser
-from gfycat.client import GfycatClient
 from imgurpython import ImgurClient
 from PIL import Image
 import urllib.request
@@ -74,6 +73,8 @@ def get_media(img_url, IMGUR_CLIENT, IMGUR_CLIENT_SECRET, r):
         return
 
     elif ('gallery' in img_url):  # Reddit galleries
+        print("GOT TO GALLERY !!!")
+
         submission = r.submission(url=img_url)
         imgs = []
         for item in sorted(submission.gallery_data['items'], key=lambda x: x['id']):
@@ -82,7 +83,9 @@ def get_media(img_url, IMGUR_CLIENT, IMGUR_CLIENT_SECRET, r):
             meta = submission.media_metadata[media_id]
 
             extension = '.' + meta["m"][6:]
+            print(extension)
             url = "https://i.redd.it/" + item["media_id"] + extension
+            print(url)
             file_name = item["media_id"] + extension
             file_path = IMAGE_DIR + '/' + file_name
             imgs.append(save_file(url, file_path))
@@ -145,21 +148,6 @@ def get_media(img_url, IMGUR_CLIENT, IMGUR_CLIENT_SECRET, r):
             print(
               '[EROR] Could not identify Imgur image/gallery ID in this URL:', img_url)
             return
-    elif ('gfycat.com' in img_url):  # Gfycat
-        try:
-            gfycat_name = os.path.basename(urllib.parse.urlsplit(img_url).path)
-            client = GfycatClient()
-            gfycat_info = client.query_gfy(gfycat_name)
-        except BaseException as e:
-            print('[EROR] Error downloading Gfycat link:', str(e))
-            return
-        # Download the 2MB version because Tweepy has a 3MB upload limit for GIFs
-        gfycat_url = gfycat_info['gfyItem']['max2mbGif']
-        file_path = IMAGE_DIR + '/' + gfycat_name + '.gif'
-        print('[ OK ] Downloading Gfycat at URL ' +
-              gfycat_url + ' to ' + file_path)
-        gfycat_file = save_file(gfycat_url, file_path)
-        return gfycat_file
     elif ('giphy.com' in img_url):  # Giphy
         # Working demo of regex: https://regex101.com/r/o8m1kA/2
         regex = r"https?://((?:.*)giphy\.com/media/|giphy.com/gifs/|i.giphy.com/)(.*-)?(\w+)(/|\n)"
@@ -186,33 +174,19 @@ def get_media(img_url, IMGUR_CLIENT, IMGUR_CLIENT_SECRET, r):
             print('[EROR] Could not identify Giphy ID in this URL:', img_url)
             return
     else:
-        # Check if URL is an image, based on the MIME type
-        image_formats = ('image/png', 'image/jpeg', 'image/gif', 'image/webp')
-        print(img_url)
-        img_site = urlopen(img_url)
-        meta = img_site.info()
-        if meta["content-type"] in image_formats:
-            # URL appears to be an image, so download it
-            file_name = os.path.basename(urllib.parse.urlsplit(img_url).path)
-            file_path = IMAGE_DIR + '/' + file_name
-            print('[ OK ] Downloading file at URL ' +
-                  img_url + ' to ' + file_path)
-            try:
-                img = save_file(img_url, file_path)
-                return img
-            except BaseException as e:
-                print('[EROR] Error while downloading image:', str(e))
-                return
-            else:
-                print('[EROR] URL does not point to a valid image file')
-                return
 
+        try:
+            img = save_file(media_url, IMAGE_DIR + '/tmp')
+            return img
+        except BaseException as e:
+            print('[EROR] Error while downloading image:', str(e))
+            return
 # Function for obtaining static images/GIFs, or MP4 videos if they exist, from popular image hosts
 # This is currently only used for Mastodon posts, because the Tweepy API doesn't support video uploads
 
 
-def get_hd_media(submission, IMGUR_CLIENT, IMGUR_CLIENT_SECRET):
-  media_url = submission.url
+def get_hd_media(media_url, IMGUR_CLIENT, IMGUR_CLIENT_SECRET):
+  #media_url = submission.url
   # Make sure config file exists
   try:
       config = configparser.ConfigParser()
@@ -321,22 +295,13 @@ def get_hd_media(submission, IMGUR_CLIENT, IMGUR_CLIENT_SECRET):
           return
   else:
       # Check if URL is an image or MP4 file, based on the MIME type
-      image_formats = ('image/png', 'image/jpeg',
-                        'image/gif', 'image/webp', 'video/mp4')
-      img_site = urlopen(media_url)
-      meta = img_site.info()
-      if meta["content-type"] in image_formats:
-          # URL appears to be an image, so download it
-          file_name = os.path.basename(urllib.parse.urlsplit(media_url).path)
-          file_path = IMAGE_DIR + '/' + file_name
-          print('[ OK ] Downloading file at URL ' +
-                media_url + ' to ' + file_path)
-          try:
-              img = save_file(media_url, file_path)
-              return img
-          except BaseException as e:
-              print('[EROR] Error while downloading image:', str(e))
-              return
-      else:
-          print('[EROR] URL does not point to a valid image file.')
-          return
+
+    try:
+        img = save_file(media_url, IMAGE_DIR + '/tmp')
+        return img
+    except BaseException as e:
+        print('[EROR] Error while downloading image:', str(e))
+        return
+
+    image_formats = ('image/png', 'image/jpeg',
+                    'image/gif', 'image/webp', 'video/mp4')
