@@ -9,7 +9,6 @@ import urllib.parse
 import sys
 from imgurpython import ImgurClient
 from glob import glob
-import distutils.core
 import itertools
 from mastodon import Mastodon
 from getmedia import get_media
@@ -19,6 +18,25 @@ import numpy as np
 import birthday
 import connect4
 import report
+from atproto import Client, models, client_utils
+
+from main import get_submissions, submission_info
+
+
+def strtobool (val):
+    """Convert a string representation of truth to true (1) or false (0).
+    True values are 'y', 'yes', 't', 'true', 'on', and '1'; false values
+    are 'n', 'no', 'f', 'false', 'off', and '0'.  Raises ValueError if
+    'val' is anything else.
+    """
+    val = val.lower()
+    if val in ('y', 'yes', 't', 'true', 'on', '1'):
+        return 1
+    elif val in ('n', 'no', 'f', 'false', 'off', '0'):
+        return 0
+    else:
+        raise ValueError("invalid truth value %r" % (val,))
+
 
 
 def get_reddit_posts(subreddit_info):
@@ -56,12 +74,13 @@ def get_twitter_caption(submission, FLAIR_ALLOWED):
             hashtag_string += '#' + x + ' '
     # Gets flair from the submission
     if (str(submission.link_flair_text) != "None" and FLAIR_ALLOWED):
-        flair = '(' + str(submission.link_flair_text) + ') '
+        flair = '#' + str(submission.link_flair_text)
     # Set the Twitter max title length for 280, minus the length of the shortlink, flair and hashtags, minus one for the space between title and shortlink
     twitter_max_title_length = 280 - len(submission.shortlink) - len(flair) - len(hashtag_string) - 1
     # Create contents of the Twitter post
     if len(submission.title) < twitter_max_title_length:
-        twitter_caption = submission.title + ' ' + flair + hashtag_string + submission.shortlink
+        twitter_caption = submission.title + ' ' + flair + hashtag_string + ' ' + submission.shortlink
+        print(submission.link_flair_text)
     else:
         twitter_caption = submission.title[:twitter_max_title_length] + '... ' + flair + ' ' + hashtag_string + submission.shortlink
     return twitter_caption
@@ -69,19 +88,44 @@ def get_twitter_caption(submission, FLAIR_ALLOWED):
 
 def get_mastodon_caption(submission):
     # Create string of hashtags
+    flair = ""
     hashtag_string = ''
+    if (str(submission.link_flair_text) != "None" and FLAIR_ALLOWED):
+        flair = str(submission.link_flair_text) + ' '
+
     if HASHTAGS:
         for x in HASHTAGS:
             # Add hashtag to string, followed by a space for the next one
             hashtag_string += '#' + x + ' '
     # Set the Mastodon max title length for 500, minus the length of the shortlink and hashtags, minus one for the space between title and shortlink
-    mastodon_max_title_length = 500 - len(submission.shortlink) - len(hashtag_string) - 1
+    mastodon_max_title_length = 500 - len(flair) - len(submission.shortlink) - len(hashtag_string) - 1
     # Create contents of the Mastodon post
     if len(submission.title) < mastodon_max_title_length:
-        mastodon_caption = submission.title + ' ' + hashtag_string + submission.shortlink
+        mastodon_caption = submission.title + ' ' + flair + hashtag_string + submission.shortlink
     else:
         mastodon_caption = submission.title[:mastodon_max_title_length] + '... ' + hashtag_string + submission.shortlink
-    return mastodon_caption
+    return mastodon_caption, flair
+
+
+def get_bluesky_caption(submission):
+    # Create string of hashtags
+    flair = ""
+    hashtag_string = ''
+    if (str(submission.link_flair_text) != "None" and FLAIR_ALLOWED):
+        flair = str(submission.link_flair_text) + ' '
+
+    if HASHTAGS:
+        for x in HASHTAGS:
+            # Add hashtag to string, followed by a space for the next one
+            hashtag_string += '#' + x + ' '
+    # Set the Mastodon max title length for 500, minus the length of the shortlink and hashtags, minus one for the space between title and shortlink
+    bluesky_max_title_length = 500 - len(flair) - len('Original post Link') - len(hashtag_string) - 1
+    # Create contents of the Mastodon post
+    if len(submission.title) < bluesky_max_title_length:
+        bluesky_caption = client_utils.TextBuilder().text(submission.title + ' ' + flair + hashtag_string).link('Original post Link', submission.shortlink)
+    else:
+        bluesky_caption = client_utils.TextBuilder().text(submission.title[:bluesky_max_title_length] + ' ' + flair + hashtag_string).link('Original post', submission.shortlink)
+    return bluesky_caption, flair
 
 
 def setup_connection_reddit(subreddit):
@@ -134,10 +178,10 @@ def hour():
 
 def check_messages():
 
-    arrayMessage = twitter.list_direct_messages()
+    arrayMessage = twitter.get_direct_messages()
     done = open("done.txt", 'r')
     data = done.readlines()
-    arrayMessage = [messages for messages in arrayMessage if messages.message_create["target"]["recipient_id"] == str(twitter.me().id) and int(messages.id) > int(data[1])]
+    arrayMessage = [messages for messages in arrayMessage if messages.message_create["target"]["recipient_id"] == str(twitter.verify_credentials().id) and int(messages.id) > int(data[1])]
     print("[ OK ] " + str(len(arrayMessage)) + " message to process")
     # print(arrayMessage)
     for message in reversed(arrayMessage):
@@ -198,11 +242,8 @@ def make_post(post_dict, FLAIR_ALLOWED):
         post_id = post_dict[post].id
         if not duplicate_check(post_id):  # Make sure post is not a duplicate
             # Download Twitter-compatible version of media file (static image or GIF under 3MB)
-            if POST_TO_TWITTER:
-                media_file = get_media(post_dict[post].url, IMGUR_CLIENT, IMGUR_CLIENT_SECRET, r)
-            # Download Mastodon-compatible version of media file (static image or MP4 file)
-            if MASTODON_INSTANCE_DOMAIN:
-                hd_media_file = get_hd_media(post_dict[post], IMGUR_CLIENT, IMGUR_CLIENT_SECRET)
+            print(post_dict[post].url)
+            media_file = get_media(post_dict[post].url, IMGUR_CLIENT, IMGUR_CLIENT_SECRET, r)
             # Post on Twitter
             if POST_TO_TWITTER:
                 # Make sure the post contains media, if MEDIA_POSTS_ONLY in config is set to True
@@ -212,43 +253,56 @@ def make_post(post_dict, FLAIR_ALLOWED):
                             CONSUMER_KEY, CONSUMER_SECRET)
                         auth.set_access_token(
                             ACCESS_TOKEN, ACCESS_TOKEN_SECRET)
-                        twitter = tweepy.API(auth)
+                        twitterv1 = tweepy.API(auth)
                         # Generate post caption
                         caption = get_twitter_caption(post_dict[post], FLAIR_ALLOWED)
                         # Post the tweet
                         if (media_file):
                             if type(media_file) is list:
-                                media_ids = [twitter.media_upload(i).media_id_string for i in media_file[:4]]
+                                media_ids = [twitterv1.media_upload(i).media_id_string for i in media_file[:4]]
                                 print('[ OK ] Posting first tweet on Twitter with media attachment:', caption)
-                                tweet = twitter.update_status(status=caption, media_ids=media_ids)
+                                if "phobia" in caption:
+                                    tweet = twitter.create_tweet(text=caption, media_ids=media_ids, possibly_sensitive=True)
+                                else:
+                                    tweet = twitter.create_tweet(text=caption, media_ids=media_ids)
                                 if len(media_file) > 4:
-                                    media_ids = [twitter.media_upload(i).media_id_string for i in media_file[4:8]]
+                                    media_ids = [twitterv1.media_upload(i).media_id_string for i in media_file[4:8]]
                                     print('[ OK ] Posting second tweet on Twitter with media attachment:', caption)
-                                    tweet = twitter.update_status(status=caption, in_reply_to_status_id=str(tweet.id), media_ids=media_ids)
+                                    if "phobia" in caption:
+                                            tweet = twitter.create_tweet(text=caption, in_reply_to_status_id=str(tweet.id), media_ids=media_ids, possibly_sensitive=True)
+                                    else:
+                                            tweet = twitter.create_tweet(text=caption, in_reply_to_status_id=str(tweet.id), media_ids=media_ids)
                                 if len(media_file) > 8:
-                                    media_ids = [twitter.media_upload(i).media_id_string for i in media_file[8:12]]
+                                    media_ids = [twitterv1.media_upload(i).media_id_string for i in media_file[8:12]]
                                     print('[ OK ] Posting third tweet on Twitter with media attachment:', caption)
-                                    tweet = twitter.update_status(status=caption, in_reply_to_status_id=str(tweet.id), media_ids=media_ids)
+                                    if "phobia" in caption:
+                                            tweet = twitter.create_tweet(text=caption, in_reply_to_status_id=str(tweet.id), media_ids=media_ids, possibly_sensitive=True)
+                                    else:
+                                            tweet = twitter.create_tweet(text=caption, in_reply_to_status_id=str(tweet.id), media_ids=media_ids)
                                 if len(media_file) > 12:
-                                    media_ids = [twitter.media_upload(i).media_id_string for i in media_file[12:16]]
+                                    media_ids = [twitterv1.media_upload(i).media_id_string for i in media_file[12:16]]
                                     print('[ OK ] Posting fourth tweet on Twitter with media attachment:', caption)
-                                    tweet = twitter.update_status(status=caption, in_reply_to_status_id=str(tweet.id), media_ids=media_ids)
+                                    if "phobia" in caption:
+                                            tweet = twitter.create_tweet(text=caption, in_reply_to_status_id=str(tweet.id), media_ids=media_ids, possibly_sensitive=True)
+                                    else:
+                                            tweet = twitter.create_tweet(text=caption, in_reply_to_status_id=str(tweet.id), media_ids=media_ids)
                                 if len(media_file) > 16:
-                                    media_ids = [twitter.media_upload(i).media_id_string for i in media_file[16:20]]
+                                    media_ids = [twitterv1.media_upload(i).media_id_string for i in media_file[16:20]]
                                     print('[ OK ] Posting fifth tweet on Twitter with media attachment:', caption)
-                                    tweet = twitter.update_status(status=caption, in_reply_to_status_id=str(tweet.id), media_ids=media_ids)
+                                    if "phobia" in caption:
+                                            tweet = twitter.create_tweet(text=caption, in_reply_to_status_id=str(tweet.id), media_ids=media_ids, possibly_sensitive=True)
+                                    else:
+                                            tweet = twitter.create_tweet(text=caption, in_reply_to_status_id=str(tweet.id), media_ids=media_ids)
                                     # We can't have more than 20 images in a reddit gallery
                             else:
-                                media_id = [twitter.media_upload(media_file).media_id_string]
-                                tweet = twitter.update_status(status=caption, media_ids=media_id)
+                                if "phobia" in caption:
+                                    media_id = [twitterv1.media_upload(media_file).media_id_string]
+                                    tweet = twitter.create_tweet(text=caption, media_ids=media_id, possibly_sensitive=True)
+                                else:
+                                    media_id = [twitterv1.media_upload(media_file).media_id_string]
+                                    tweet = twitter.create_tweet(text=caption, media_ids=media_id)
                             print('[ OK ] Posting this on Twitter with media attachment:', caption)
 
-                            # Clean up media file
-                            try:
-                                os.remove(media_file)
-                                print('[ OK ] Deleted media file at', media_file)
-                            except BaseException as e:
-                                print('[EROR] Error while deleting media file:', str(e))
                         else:
                             print('[ OK ] Posting this on Twitter:', caption)
                             tweet = twitter.update_status(status=caption)
@@ -266,26 +320,45 @@ def make_post(post_dict, FLAIR_ALLOWED):
             # Post on Mastodon
             if MASTODON_INSTANCE_DOMAIN:
                 # Make sure the post contains media, if MEDIA_POSTS_ONLY in config is set to True
-                if (((MEDIA_POSTS_ONLY is True) and hd_media_file) or (MEDIA_POSTS_ONLY is False)):
+                if (((MEDIA_POSTS_ONLY is True) and media_file) or (MEDIA_POSTS_ONLY is False)):
                     try:
                         # Generate post caption
-                        caption = get_mastodon_caption(post_dict[post])
+                        caption, flair = get_mastodon_caption(post_dict[post])
                         # Post the toot
-                        if (hd_media_file):
-                            print(
-                                '[ OK ] Posting this on Mastodon with media attachment:', caption)
-                            media = mastodon.media_post(hd_media_file, mime_type=None)
-                            # If the post is marked as NSFW on Reddit, force sensitive media warning for images
-                            if (post_dict[post].over_18 == True):
-                                toot = mastodon.status_post(caption, media_ids=[media], spoiler_text='NSFW')
+                        if (media_file):
+                            if type(media_file) is list:
+                                print('[ OK ] Posting root message to Mastodon with media attachment:', caption)
+                                media = mastodon.media_post(media_file[0], mime_type=None)
+                                # If the post is marked as NSFW on Reddit, force sensitive media warning for images
+                                if (post_dict[post].over_18 == True):
+                                    toot = mastodon.status_post(caption, media_ids=[media], spoiler_text='NSFW')
+                                else:
+                                    if len(flair) > 0:
+                                        toot = mastodon.status_post(caption, media_ids=[media], spoiler_text=flair)
+                                    else:
+                                        toot = mastodon.status_post(caption, media_ids=[media], sensitive=MASTODON_SENSITIVE_MEDIA)
+                                for i in range(1, len(media_file)):
+                                    print(f'[ OK ] Posting reply {i}')
+                                    media = mastodon.media_post(media_file[i], mime_type=None)
+                                    # If the post is marked as NSFW on Reddit, force sensitive media warning for images
+                                    if (post_dict[post].over_18 == True):
+                                        toot = mastodon.status_post(caption, in_reply_to_id=toot['id'], media_ids=[media], spoiler_text='NSFW')
+                                    else:
+                                        if len(flair) > 0:
+                                            toot = mastodon.status_post(caption, in_reply_to_id=toot['id'], media_ids=[media], spoiler_text=flair)
+                                        else:
+                                            toot = mastodon.status_post(caption, in_reply_to_id=toot['id'], media_ids=[media], sensitive=MASTODON_SENSITIVE_MEDIA)
                             else:
-                                toot = mastodon.status_post(caption, media_ids=[media], sensitive=MASTODON_SENSITIVE_MEDIA)
-                            # Clean up media file
-                            try:
-                                os.remove(hd_media_file)
-                                print('[ OK ] Deleted media file at', hd_media_file)
-                            except BaseException as e:
-                                print('[EROR] Error while deleting media file:', str(e))
+                                print('[ OK ] Posting this on Mastodon with media attachment:', caption)
+                                media = mastodon.media_post(media_file, mime_type=None)
+                                # If the post is marked as NSFW on Reddit, force sensitive media warning for images
+                                if (post_dict[post].over_18 == True):
+                                    toot = mastodon.status_post(caption, media_ids=[media], spoiler_text='NSFW')
+                                else:
+                                    if len(flair) > 0:
+                                        toot = mastodon.status_post(caption, media_ids=[media], spoiler_text=flair)
+                                    else:
+                                        toot = mastodon.status_post(caption, media_ids=[media], sensitive=MASTODON_SENSITIVE_MEDIA)
                         else:
                             print('[ OK ] Posting this on Mastodon:', caption)
                             # Add NSFW warning for Reddit posts marked as NSFW
@@ -307,6 +380,85 @@ def make_post(post_dict, FLAIR_ALLOWED):
             # Go to sleep
             # print('[ OK ] Sleeping for', DELAY_BETWEEN_TWEETS, 'seconds')
             # time.sleep(DELAY_BETWEEN_TWEETS)
+            if POST_TO_BLUESKY:
+                if (((MEDIA_POSTS_ONLY is True) and media_file) or (MEDIA_POSTS_ONLY is False)):
+                    try:
+                        # Generate post caption
+                        caption, flair = get_bluesky_caption(post_dict[post])
+                        # Post the toot
+                        if (media_file):
+                            if type(media_file) is list:
+
+                                with open(media_file[0], 'rb') as f:
+                                    img_data = f.read()
+
+                                    upload = bluesky.upload_blob(img_data)
+                                    images = [models.AppBskyEmbedImages.Image(alt=flair, image=upload.blob)]
+                                    embed = models.AppBskyEmbedImages.Main(images=images)
+
+                                post = bluesky.send_image(text=caption, image=img_data, image_alt=flair)
+                                print('[ OK ] Posting rppt ùessage')
+                                root_post_ref = models.create_strong_ref(post)
+                                reply_ref = models.AppBskyFeedPost.ReplyRef(parent=root_post_ref, root=root_post_ref)
+
+                                with open(media_file[1], 'rb') as f:
+                                    img_data = f.read()
+
+                                    upload = bluesky.upload_blob(img_data)
+                                    images = [models.AppBskyEmbedImages.Image(alt=flair, image=upload.blob)]
+                                    embed = models.AppBskyEmbedImages.Main(images=images)
+
+                                post = bluesky.send_image(text=caption, image=img_data, image_alt=flair, reply_to=reply_ref)
+                                print('[ OK ] Posting reply 1')
+                                reply_post_ref = models.create_strong_ref(post)
+                                reply_ref = models.AppBskyFeedPost.ReplyRef(parent=reply_post_ref, root=root_post_ref)
+
+                                for i in range(2, len(media_file)):
+                                    with open(media_file[i], 'rb') as f:
+                                        img_data = f.read()
+
+                                        upload = bluesky.upload_blob(img_data)
+                                        images = [models.AppBskyEmbedImages.Image(alt=flair, image=upload.blob)]
+                                        embed = models.AppBskyEmbedImages.Main(images=images)
+
+                                    post = bluesky.send_image(text=caption, image=img_data, image_alt=flair, reply_to=reply_ref)
+                                    print(f'[ OK ] Posting reply {i}')
+                                    reply_post_ref = models.create_strong_ref(post)
+                                    reply_ref = models.AppBskyFeedPost.ReplyRef(parent=reply_post_ref, root=root_post_ref)
+
+                            else:
+                                with open(media_file, 'rb') as f:
+                                    img_data = f.read()
+
+                                    upload = bluesky.upload_blob(img_data)
+                                    images = [models.AppBskyEmbedImages.Image(alt=flair, image=upload.blob)]
+                                    embed = models.AppBskyEmbedImages.Main(images=images)
+
+                                post = bluesky.send_image(text=caption, image=img_data, image_alt=flair)
+                                print('[ OK ] Posting this on Bluesky with media attachment:', caption)
+                                # If the post is marked as NSFW on Reddit, force sensitive media warning for images
+
+                        else:
+                            print('[ OK ] Posting this on Bluesky:', caption)
+                            text = client_utils.TextBuilder().text(caption)
+                            post = bluesky.send_post(text)
+                        # Log the toot
+                        log_post(post_id, post["cid"])
+                    except BaseException as e:
+                        print('[EROR] Error while posting to Bluesky:', str(e))
+                        # Log the post anyways
+                        log_post(post_id, 'Error while posting toot: ' + str(e))
+                else:
+                    print('[WARN] Bluesky: Skipping', post_id, 'because non-media posts are disabled or the media file was not found')
+                    # Log the post anyways
+                    log_post(post_id, 'Bluesky: Skipped because non-media posts are disabled or the media file was not found')
+
+            # Clean up media file
+            try:
+                os.system("rm media/*")
+                print('[ OK ] Deleted media file')
+            except BaseException as e:
+                print('[EROR] Error while deleting media file:', str(e))
             break
         else:
             print('[ OK ] Skipping', post_id, 'because it was already posted')
@@ -338,11 +490,11 @@ CACHE_CSV = config['BotSettings']['CacheFile']
 DELAY_BETWEEN_TWEETS = int(config['BotSettings']['DelayBetweenPosts'])
 POST_LIMIT = int(config['BotSettings']['PostLimit'])
 SUBREDDIT_TO_MONITOR = config['BotSettings']['SubredditToMonitor']
-NSFW_POSTS_ALLOWED = bool(distutils.util.strtobool(
+NSFW_POSTS_ALLOWED = bool(strtobool(
     config['BotSettings']['NSFWPostsAllowed']))
-SPOILERS_ALLOWED = bool(distutils.util.strtobool(
+SPOILERS_ALLOWED = bool(strtobool(
     config['BotSettings']['SpoilersAllowed']))
-SELF_POSTS_ALLOWED = bool(distutils.util.strtobool(
+SELF_POSTS_ALLOWED = bool(strtobool(
     config['BotSettings']['SelfPostsAllowed']))
 if config['BotSettings']['Hashtags']:
     # Parse list of hashtags
@@ -350,19 +502,24 @@ if config['BotSettings']['Hashtags']:
     HASHTAGS = [x.strip() for x in HASHTAGS.split(',')]
 else:
     HASHTAGS = ''
-FLAIR_ALLOWED = bool(distutils.util.strtobool(
+FLAIR_ALLOWED = bool(strtobool(
     config['BotSettings']['Flair']))
 # Settings related to media attachments
-MEDIA_POSTS_ONLY = bool(distutils.util.strtobool(
+MEDIA_POSTS_ONLY = bool(strtobool(
     config['MediaSettings']['MediaPostsOnly']))
 # Twitter info
-POST_TO_TWITTER = bool(distutils.util.strtobool(
+POST_TO_TWITTER = bool(strtobool(
     config['Twitter']['PostToTwitter']))
-TWITTER_OWNER = config['Twitter']['TwitterOwner']
+
 # Mastodon info
 MASTODON_INSTANCE_DOMAIN = config['Mastodon']['InstanceDomain']
 MASTODON_SENSITIVE_MEDIA = bool(
-    distutils.util.strtobool(config['Mastodon']['SensitiveMedia']))
+    strtobool(config['Mastodon']['SensitiveMedia']))
+
+# Bluesky info
+POST_TO_BLUESKY = bool(strtobool(
+    config['Bluesky']['PostToBluesky']))
+
 # Setup and verify Reddit access
 if not os.path.exists('reddit.secret'):
     print('[WARN] API keys for Reddit not found. Please enter them below (see wiki if you need help).')
@@ -425,24 +582,24 @@ else:
     imgur_config.read('imgur.secret')
     IMGUR_CLIENT = imgur_config['Imgur']['ClientID']
     IMGUR_CLIENT_SECRET = imgur_config['Imgur']['ClientSecret']
+
 # Log into Twitter if enabled in settings
 if POST_TO_TWITTER is True:
     if os.path.exists('twitter.secret'):
         # Read API keys from secret file
-        twitter_config = configparser.ConfigParser()
+        twitter_config = configparser.ConfigParser(interpolation=None)
         twitter_config.read('twitter.secret')
         ACCESS_TOKEN = twitter_config['Twitter']['AccessToken']
         ACCESS_TOKEN_SECRET = twitter_config['Twitter']['AccessTokenSecret']
         CONSUMER_KEY = twitter_config['Twitter']['ConsumerKey']
         CONSUMER_SECRET = twitter_config['Twitter']['ConsumerSecret']
+        BEARER_TOKEN = twitter_config['Twitter']['bearertoken']
         try:
             # Make sure authentication is working
-            auth = tweepy.OAuthHandler(CONSUMER_KEY, CONSUMER_SECRET)
-            auth.set_access_token(ACCESS_TOKEN, ACCESS_TOKEN_SECRET)
-            twitter = tweepy.API(auth)
-            twitter_username = twitter.me().screen_name
+            twitter = tweepy.Client(BEARER_TOKEN, CONSUMER_KEY, CONSUMER_SECRET, ACCESS_TOKEN, ACCESS_TOKEN_SECRET, wait_on_rate_limit=True)
+            twitter_username = twitter.get_me()[0]
             print('[ OK ] Sucessfully authenticated on Twitter as @' +
-                  twitter_username)
+                  str(twitter_username))
         except BaseException as e:
             print('[EROR] Error while logging into Twitter:', str(e))
             print('[EROR] Tootbot cannot continue, now shutting down')
@@ -465,7 +622,7 @@ if POST_TO_TWITTER is True:
             auth = tweepy.OAuthHandler(CONSUMER_KEY, CONSUMER_SECRET)
             auth.set_access_token(ACCESS_TOKEN, ACCESS_TOKEN_SECRET)
             twitter = tweepy.API(auth)
-            twitter_username = twitter.me().screen_name
+            twitter_username = twitter.verify_credentials().screen_name
             print('[ OK ] Sucessfully authenticated on Twitter as @' +
                   twitter_username)
             # It worked, so save the keys to a file
@@ -483,6 +640,7 @@ if POST_TO_TWITTER is True:
             print('[EROR] Error while logging into Twitter:', str(e))
             print('[EROR] Tootbot cannot continue, now shutting down')
             exit()
+
 # Log into Mastodon if enabled in settings
 if MASTODON_INSTANCE_DOMAIN:
     if not os.path.exists('mastodon.secret'):
@@ -519,11 +677,13 @@ if MASTODON_INSTANCE_DOMAIN:
             exit()
     else:
         try:
+            print("Before mastodon ) mastodon")
             mastodon = Mastodon(
-                access_token='mastodon.secret',
+                access_token=r'mastodon.secret',
                 api_base_url='https://' + MASTODON_INSTANCE_DOMAIN
             )
             # Make sure authentication is working
+            print("Adter mastodon = mastodon")
             username = mastodon.account_verify_credentials()['username']
             print('[ OK ] Sucessfully authenticated on ' +
                   MASTODON_INSTANCE_DOMAIN + ' as @' + username)
@@ -531,18 +691,41 @@ if MASTODON_INSTANCE_DOMAIN:
             print('[EROR] Error while logging into Mastodon:', str(e))
             print('[EROR] Tootbot cannot continue, now shutting down')
             exit()
+
+
+if POST_TO_BLUESKY:
+
+    bluesky = Client()
+
+    bluesky_config = configparser.ConfigParser()
+    bluesky_config.read('bluesky.secret')
+
+    HANDLE = bluesky_config['Bluesky']['handle']
+    PASSWORD = bluesky_config['Bluesky']['password']
+
+    try:
+        # Make sure authentication is working
+        bluesky.login(HANDLE, PASSWORD)
+        print('[ OK ] Sucessfully authenticated on Twitter as @' +
+                  HANDLE)
+    except BaseException as e:
+        print('[EROR] Error while logging into Bluesky:', str(e))
+        print('[EROR] Tootbot cannot continue, now shutting down')
+        exit()
+
+
 # Set the command line window title on Windows
 if (os.name == 'nt'):
     try:
         if POST_TO_TWITTER and MASTODON_INSTANCE_DOMAIN:
             # Set title with both Twitter and Mastodon usernames
-            # twitter_username = twitter.me().screen_name
+            # twitter_username = twitter.verify_credentials().screen_name
             masto_username = mastodon.account_verify_credentials()['username']
             os.system('title ' + twitter_username + '@twitter.com and ' +
                       masto_username + '@' + MASTODON_INSTANCE_DOMAIN + ' - Tootbot')
         elif POST_TO_TWITTER:
             # Set title with just Twitter username
-            twitter_username = twitter.me().screen_name
+            twitter_username = twitter.verify_credentials().screen_name
             os.system('title ' + '@' + twitter_username + ' - Tootbot')
         elif MASTODON_INSTANCE_DOMAIN:
             # Set title with just Mastodon username
@@ -561,6 +744,9 @@ r = praw.Reddit(
 # Run the main script
 while True:
 
+    # process birthday
+    # birthday.check_birthday(twitter, datetime.now())
+
     # Make sure logging file and media directory exists
     if not os.path.exists(CACHE_CSV):
         with open(CACHE_CSV, 'w', newline='') as cache:
@@ -575,13 +761,15 @@ while True:
         post_dict = get_reddit_posts(subreddit)
         make_post(post_dict, FLAIR_ALLOWED)
     except BaseException as e:
-        print('[EROR] Error in main process:', str(e))
+        print(e)
+        print('[EROR] Error in main process')
 
-    # process birthday and messages
-    birthday.check_birthday(twitter, datetime.now())
-
+    # Process messages
     for i in range(int(DELAY_BETWEEN_TWEETS//200)):
-        check_messages()
+        try:
+            # check_messages()
+            pass
+        except BaseException as e:
+            print("[ ERROR ] Couldn't read messages :", e)
         time.sleep(200)
-        
     print(hour() + '[ OK ] Restarting main process...')
